@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+from enum import Enum
 from importlib.resources import files
 from importlib.util import find_spec
 from pathlib import Path
@@ -11,8 +12,24 @@ from semble.index import SembleIndex
 from semble.stats import format_savings_report
 from semble.utils import _format_results, _is_git_url, _resolve_chunk
 
-_CLAUDE_FILE_PATH = Path(".claude") / "agents" / "semble-search.md"
+
+class Agent(str, Enum):
+    CLAUDE = "claude"
+    COPILOT = "copilot"
+    CURSOR = "cursor"
+    GEMINI = "gemini"
+    KIRO = "kiro"
+    OPENCODE = "opencode"
+
+
+_DEFAULT_AGENT = Agent.CLAUDE
 _CLI_DISPATCH_ARGS = frozenset({"search", "find-related", "init", "savings", "-h", "--help"})
+
+
+def _agent_path(agent: Agent) -> Path:
+    """Return the project-relative path where the semble sub-agent file should be written."""
+    base_dir = ".github" if agent is Agent.COPILOT else f".{agent.value}"
+    return Path(base_dir) / "agents" / "semble-search.md"
 
 
 def main() -> None:
@@ -49,9 +66,9 @@ def _mcp_main() -> None:
     asyncio.run(serve(args.path, ref=args.ref, include_text_files=args.include_text_files))
 
 
-def _run_init(*, force: bool = False) -> None:
-    """Write the Claude Code sub-agent file into the current project."""
-    dest = _CLAUDE_FILE_PATH
+def _run_init(*, agent: Agent = _DEFAULT_AGENT, force: bool = False) -> None:
+    """Write the semble sub-agent file for the given coding agent into the current project."""
+    dest = _agent_path(agent)
     if dest.exists() and not force:
         print(f"{dest} already exists. Run with --force to overwrite.", file=sys.stderr)
         sys.exit(1)
@@ -89,7 +106,14 @@ def _cli_main() -> None:
         help="Also index non-code text files (.md, .yaml, .json, etc.).",
     )
 
-    init_p = sub.add_parser("init", help="Write .claude/agents/semble-search.md for Claude Code sub-agent support.")
+    init_p = sub.add_parser("init", help="Write a semble sub-agent file for your coding agent.")
+    init_p.add_argument(
+        "--agent",
+        "-a",
+        default=_DEFAULT_AGENT.value,
+        choices=[a.value for a in Agent],
+        help=f"Coding agent to set up (default: {_DEFAULT_AGENT.value}).",
+    )
     init_p.add_argument("--force", action="store_true", help="Overwrite if the file already exists.")
 
     savings_p = sub.add_parser("savings", help="Show token savings and usage stats.")
@@ -98,7 +122,7 @@ def _cli_main() -> None:
     args = parser.parse_args()
 
     if args.command == "init":
-        _run_init(force=args.force)
+        _run_init(agent=Agent(args.agent), force=args.force)
         return
 
     if args.command == "savings":
