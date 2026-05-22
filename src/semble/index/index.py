@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import warnings
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
@@ -15,9 +16,29 @@ from semble.index.create import create_index_from_path
 from semble.index.dense import SelectableBasicBackend, load_model
 from semble.search import _search_semantic, search
 from semble.stats import save_search_stats
-from semble.types import CallType, Chunk, Encoder, IndexStats, SearchResult
+from semble.types import CallType, Chunk, ContentType, Encoder, IndexStats, SearchResult
 
 _GIT_CLONE_TIMEOUT = int(os.environ.get("SEMBLE_CLONE_TIMEOUT", 60))
+_DEFAULT_CONTENT: tuple[ContentType, ...] = (ContentType.CODE,)
+_ALL_CONTENT: tuple[ContentType, ...] = (ContentType.CODE, ContentType.DOCS, ContentType.CONFIG)
+_INCLUDE_TEXT_FILES_DEPRECATION_MSG = (
+    "include_text_files is deprecated and will be removed in a future version. "
+    "Use content=(ContentType.CODE, ContentType.DOCS, ContentType.CONFIG) instead."
+)
+
+
+def _apply_include_text_files(
+    content: ContentType | Sequence[ContentType], include_text_files: bool | None
+) -> tuple[ContentType, ...]:
+    """Apply the deprecated include_text_files override, emitting a DeprecationWarning."""
+    if include_text_files is None:
+        return (content,) if isinstance(content, ContentType) else tuple(content)
+    warnings.warn(
+        _INCLUDE_TEXT_FILES_DEPRECATION_MSG,
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    return _ALL_CONTENT if include_text_files else _DEFAULT_CONTENT
 
 
 class SembleIndex:
@@ -30,6 +51,7 @@ class SembleIndex:
         semantic_index: SelectableBasicBackend,
         chunks: list[Chunk],
         root: Path | None = None,
+        content: ContentType | Sequence[ContentType] = _DEFAULT_CONTENT,
     ) -> None:
         """Initialize a SembleIndex. Should be created with from_path or from_git.
 
@@ -38,12 +60,14 @@ class SembleIndex:
         :param semantic_index: The semantic index.
         :param chunks: The found chunks.
         :param root: Root directory used to read file sizes for token-savings stats.
+        :param content: Content type used when indexing; controls the search pipeline.
         """
         self.model: Encoder = model
         self.chunks: list[Chunk] = chunks
         self._bm25_index: BM25 = bm25_index
         self._semantic_index: SelectableBasicBackend = semantic_index
         self._root: Path | None = root
+        self._content: tuple[ContentType, ...] = (content,) if isinstance(content, ContentType) else tuple(content)
         self._file_sizes: dict[str, int] = self._compute_file_sizes(root) if root else {}
         self._file_mapping, self._language_mapping = self._populate_mapping()
 
@@ -91,18 +115,21 @@ class SembleIndex:
         path: str | Path,
         model: Encoder | None = None,
         extensions: Sequence[str] | None = None,
-        include_text_files: bool = False,
+        content: ContentType | Sequence[ContentType] = _DEFAULT_CONTENT,
+        include_text_files: bool | None = None,
     ) -> SembleIndex:
         """Create and index a SembleIndex from a directory.
 
         :param path: Root directory to index.
         :param model: Embedding model to use. Defaults to potion-code-16M.
         :param extensions: File extensions to include. Defaults to a standard set of code extensions.
-        :param include_text_files: If True, also index non-code text files (.md, .yaml, .json, etc.).
-        :return: An indexed SembleIndex. Chunk file paths are relative to ``path``.
+        :param content: Content types to index, e.g. ContentType.CODE or [ContentType.CODE, ContentType.DOCS].
+        :param include_text_files: Deprecated. Pass a content sequence directly instead.
+        :return: An indexed SembleIndex. Chunk file paths are relative to path.
         :raises FileNotFoundError: If `path` does not exist.
         :raises NotADirectoryError: If `path` exists but is not a directory.
         """
+        normalized = _apply_include_text_files(content, include_text_files)
         model = model or load_model()
         path = Path(path)
         if not path.exists():
@@ -114,11 +141,11 @@ class SembleIndex:
             path,
             model=model,
             extensions=extensions,
-            include_text_files=include_text_files,
+            content=normalized,
             display_root=path,
         )
 
-        return SembleIndex(model, bm25, vicinity, chunks, root=path)
+        return SembleIndex(model, bm25, vicinity, chunks, root=path, content=normalized)
 
     @classmethod
     def from_git(
@@ -127,23 +154,26 @@ class SembleIndex:
         ref: str | None = None,
         model: Encoder | None = None,
         extensions: Sequence[str] | None = None,
-        include_text_files: bool = False,
+        content: ContentType | Sequence[ContentType] = _DEFAULT_CONTENT,
+        include_text_files: bool | None = None,
     ) -> SembleIndex:
         """Clone a git repository and index it.
 
         The repository is cloned into a temporary directory that is removed once
         indexing finishes. Chunk content is preserved in-memory, but
-        ``chunk.file_path`` will not point to a readable file after this call
+        chunk.file_path will not point to a readable file after this call
         returns — it is a repo-relative label, not a filesystem path.
 
         :param url: URL of the git repository to clone (any git provider).
         :param ref: Branch or tag to check out. Defaults to the remote HEAD.
         :param model: Embedding model to use. Defaults to potion-code-16M.
         :param extensions: File extensions to include. Defaults to a standard set of code extensions.
-        :param include_text_files: If True, also index non-code text files (.md, .yaml, .json, etc.).
-        :return: An indexed SembleIndex. Chunk file paths are repo-relative (e.g. ``src/foo.py``).
+        :param content: Content types to index, e.g. (ContentType.CODE,) or (ContentType.CODE, ContentType.DOCS).
+        :param include_text_files: Deprecated. Pass content=(ContentType.CODE, ContentType.DOCS, ...) instead.
+        :return: An indexed SembleIndex. Chunk file paths are repo-relative (e.g. src/foo.py).
         :raises RuntimeError: If git is not on PATH, the clone fails, or times out.
         """
+        normalized = _apply_include_text_files(content, include_text_files)
         with tempfile.TemporaryDirectory() as tmp_dir:
             # `--` prevents `url` from being interpreted as a git option (e.g. `--upload-pack=...`).
             cmd = ["git", "clone", "--depth", "1", *(["--branch", ref] if ref else []), "--", url, tmp_dir]
@@ -163,11 +193,11 @@ class SembleIndex:
                 resolved_path,
                 model=model,
                 extensions=extensions,
-                include_text_files=include_text_files,
+                content=normalized,
                 display_root=resolved_path,
             )
 
-            return SembleIndex(model, bm25, vicinity, chunks, root=resolved_path)
+            return SembleIndex(model, bm25, vicinity, chunks, root=resolved_path, content=normalized)
 
     def find_related(self, source: Chunk | SearchResult, *, top_k: int = 5) -> list[SearchResult]:
         """Return chunks semantically similar to the given chunk or search result.
@@ -202,38 +232,38 @@ class SembleIndex:
         alpha: float | None = None,
         filter_languages: list[str] | None = None,
         filter_paths: list[str] | None = None,
-        rerank: bool = True,
+        rerank: bool | None = None,
     ) -> list[SearchResult]:
         """Search the index and return the top-k most relevant chunks.
 
         :param query: Natural-language or keyword query string.
         :param top_k: Maximum number of results to return.
         :param alpha: Blend weight for hybrid score combination; 1.0 = full semantic
-            weight, 0.0 = full BM25 weight. File-path penalties and diversity reranking
-            are applied regardless. ``None`` auto-detects from query type.
+            weight, 0.0 = full BM25 weight. None auto-detects from query type.
         :param filter_languages: Optional list of language codes; if set, only chunks in
             these languages are returned.
         :param filter_paths: Optional list of repo-relative file paths; if set, only
             chunks from these files are returned.
-        :param rerank: Whether to rerank the top-k results using custom reranking logic.
-        :return: Ranked list of :class:`SearchResult` objects, best match first.
+        :param rerank: Apply code-tuned reranking (file boost, identifier boost, path penalties).
+            Defaults to True when ContentType.CODE was indexed.
+        :return: Ranked list of SearchResult objects, best match first.
         """
-        bm25_index, semantic_index = self._bm25_index, self._semantic_index
         if not self.chunks or not query.strip():
             return []
 
-        selector = self._get_selector_vector(filter_languages, filter_paths)
+        resolved_rerank = (ContentType.CODE in self._content) if rerank is None else rerank
 
+        selector = self._get_selector_vector(filter_languages, filter_paths)
         results = search(
             query,
             self.model,
-            semantic_index,
-            bm25_index,
+            self._semantic_index,
+            self._bm25_index,
             self.chunks,
             top_k,
             alpha=alpha,
             selector=selector,
-            rerank=rerank,
+            rerank=resolved_rerank,
         )
         save_search_stats(results, CallType.SEARCH, self._file_sizes)
         return results
