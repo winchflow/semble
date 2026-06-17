@@ -1,5 +1,5 @@
 <h2 align="center">
-  <img width="30%" alt="semble logo" src="https://raw.githubusercontent.com/MinishLab/semble/main/assets/images/semble_logo.png"><br/>
+  <img width="30%" alt="semble logo" src="https://raw.githubusercontent.com/winchflow/semble/main/assets/images/semble_logo.png"><br/>
   Fast and Accurate Code Search for Agents<br/>
   <sub>Uses ~98% fewer tokens than grep+read</sub>
 </h2>
@@ -7,10 +7,10 @@
 <div align="center">
   <h2>
     <a href="https://pypi.org/project/semble/"><img src="https://img.shields.io/pypi/v/semble?color=%23007ec6&label=pypi%20package" alt="Package version"></a>
-    <a href="https://app.codecov.io/gh/MinishLab/semble">
-      <img src="https://codecov.io/gh/MinishLab/semble/graph/badge.svg?token=SZKRFKPPCG" alt="Codecov">
+    <a href="https://app.codecov.io/gh/winchflow/semble">
+      <img src="https://codecov.io/gh/winchflow/semble/graph/badge.svg" alt="Codecov">
     </a>
-    <a href="https://github.com/MinishLab/semble/blob/main/LICENSE">
+    <a href="https://github.com/winchflow/semble/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/license-MIT-green" alt="License - MIT">
     </a>
   </h2>
@@ -217,8 +217,8 @@ We benchmark quality and speed across ~1,250 queries over 63 repositories in 19 
 
 <table>
 <tr>
-<td><img src="https://raw.githubusercontent.com/MinishLab/semble/main/assets/images/speed_vs_ndcg_cold.png" alt="Speed vs quality"></td>
-<td><img src="https://raw.githubusercontent.com/MinishLab/semble/main/assets/images/token_efficiency.png" alt="Token efficiency: recall vs. retrieved tokens"></td>
+<td><img src="https://raw.githubusercontent.com/winchflow/semble/main/assets/images/speed_vs_ndcg_cold.png" alt="Speed vs quality"></td>
+<td><img src="https://raw.githubusercontent.com/winchflow/semble/main/assets/images/token_efficiency.png" alt="Token efficiency: recall vs. retrieved tokens"></td>
 </tr>
 </table>
 
@@ -264,7 +264,7 @@ If you use Semble in your research, please cite the following:
   year         = {2026},
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.19785932},
-  url          = {https://github.com/MinishLab/semble},
+  url          = {https://github.com/winchflow/semble},
   license      = {MIT}
 }
 ```

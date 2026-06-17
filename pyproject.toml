@@ -60,9 +60,9 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/MinishLab/semble"
-"Bug Reports" = "https://github.com/MinishLab/semble/issues"
-"Source" = "https://github.com/MinishLab/semble"
+"Homepage" = "https://github.com/winchflow/semble"
+"Bug Reports" = "https://github.com/winchflow/semble/issues"
+"Source" = "https://github.com/winchflow/semble"
 
 [project.scripts]
 semble = "semble.cli:main"

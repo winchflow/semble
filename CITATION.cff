@@ -8,8 +8,8 @@ authors:
     given-names: "Stephan"
 doi: 10.5281/zenodo.19785932
 license: MIT
-url: "https://github.com/MinishLab/semble"
-repository-code: "https://github.com/MinishLab/semble"
+url: "https://github.com/winchflow/semble"
+repository-code: "https://github.com/winchflow/semble"
 date-released: "2026-04-26"
 
 preferred-citation:
@@ -23,5 +23,5 @@ preferred-citation:
   year: 2026
   publisher: Zenodo
   doi: 10.5281/zenodo.19785932
-  url: "https://github.com/MinishLab/semble"
+  url: "https://github.com/winchflow/semble"
   license: MIT
